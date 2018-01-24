@@ -3,6 +3,7 @@ import cv2
 
 def discardInnerRectangles(contours):
 	to_delete = []
+	# print(len(contours))
 	for i in range(len(contours)):
 		
 		for j in range(len(contours)):
@@ -17,17 +18,21 @@ def discardInnerRectangles(contours):
 				if ((x1 <= x22) and (x22 <= x11)):
 					if ((y1 <= y22) and (y22 <= y11)):
 						to_delete.append(j)
-						
+
 	for k in range(len(to_delete)):
 		del contours[k]
-	
+	# print(len(contours))
 	return contours
 
 def main():
-	cap = cv2.VideoCapture('../data/video-1.avi')
 
+	minLineLength = 100
+	maxLineGap = 10
+	font = cv2.FONT_HERSHEY_SIMPLEX
+	cap = cv2.VideoCapture('../data/video-0.avi')
+	
 	cv2.startWindowThread()
-
+	
 	while(cap.isOpened()):
 		flag, frame = cap.read()
 		if flag:
@@ -43,11 +48,43 @@ def main():
 				if width > 4 and width < 30 and height > 3 and height < 30:
 					contours_of_interest.append(contour)
 			
+			# print(len(contours_of_interest))
 			contours_of_interest = discardInnerRectangles(contours_of_interest)
+			# print(len(contours_of_interest))
 			
 			for contour in contours_of_interest:
 				x,y,w,h = cv2.boundingRect(contour)
 				cv2.rectangle(frame, (x,y), (x+w,y+h),(0,255,255),1)
+			
+			# Hough transformacija
+			'''
+			lines = cv2.HoughLines(img_bin,1,np.pi/180, 200)
+
+			for rho,theta in lines[0]:
+				a = np.cos(theta)
+				b = np.sin(theta)
+				x0 = a*rho
+				y0 = b*rho
+				
+				x1 = int(x0 + 1000*(-b))
+				y1 = int(y0 + 1000*(a))
+				x2 = int(x0 - 1000*(-b))
+				y2 = int(y0 - 1000*(a))
+				
+				print('=======================================================')
+				print(x1)
+				print(y1)
+				print(x2)
+				print(y2)
+				cv2.line(frame,(x1,y1), (x2,y2), (0,0,255),2)
+				cv2.putText(frame,'X',(x1,y1), font, 4,(255,255,255),2,cv2.LINE_AA)
+				cv2.putText(frame,'X',(x2,y2), font, 4,(255,255,255),2,cv2.LINE_AA)
+			'''
+			
+			# Probabilisticka Hough transformacija
+			lines = cv2.HoughLinesP(img_bin, 1, np.pi/180, 100, minLineLength, maxLineGap)
+			for x1,y1,x2,y2 in lines[0]:
+				cv2.line(frame, (x1,y1), (x2,y2), (0,255,0), 2)
 			
 			cv2.imshow('frame', frame)
 			cv2.imshow('binary', img_bin)
