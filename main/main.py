@@ -4,6 +4,8 @@ import cv2
 import vectors as v
 import utils as u
 from number import Number
+from sklearn import datasets
+from sklearn import svm
 
 id = -1 # identifikator svake konture
 
@@ -39,7 +41,7 @@ def checkIfNumberExisted(number, numbers_past):
 			ret = cv2.matchShapes(value.contour, number.contour, 1, 0.0)
 			center, _, _ = cv2.minAreaRect(value.contour)
 			centerN, _, _ = cv2.minAreaRect(number.contour)
-			if ret < 0.5:
+			if ret < 0.1:
 				retFlag = True
 				retNumId = key
 				break
@@ -53,6 +55,12 @@ def getUniqueId():
 	return id
 
 def main():
+	# Deo za masinsko ucenje
+	digits = datasets.load_digits()
+	clf = svm.SVC(gamma=0.001, C=100)
+	x,y = digits.data[:], digits.target[:]
+	clf.fit(x,y)
+	
 	font = cv2.FONT_HERSHEY_SIMPLEX
 	cap = cv2.VideoCapture('../data/video-1.avi')
 	
@@ -78,7 +86,7 @@ def main():
 		tgFi = y / x
 	'''
 	tgFiP = lineCoords[0][1] / (lineCoords[0][0] - O[0])
-	
+	print(tgFiP)
 	numbers_past = dict()
 	numbers_present = dict()
 	contour_past = []
@@ -87,19 +95,24 @@ def main():
 	left_near_numbers = dict()
 	right_near_numbers = dict()
 	
+	# Lista brojeva za sabrati
+	to_add = dict()
+	predict_num = 0
+	
 	while(cap.isOpened()):
 		flag, frame = cap.read()
 		if flag:
 			img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 			_, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
 			
+			img_t = img_bin
 			img, contours, hierarchy = cv2.findContours(img_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 			
 			contours_of_interest = []
 			for contour in contours:
 				center, size, angle = cv2.minAreaRect(contour)
 				width, height = size
-				if width > 3 and width < 28 and height > 3 and height < 28:
+				if width >= 3.5 and width < 28 and height >= 3.5 and height < 28:
 					contours_of_interest.append(contour)
 				
 			
@@ -121,13 +134,6 @@ def main():
 			
 			cv2.line(frame, (lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]), (0,255,0), 2)
 			
-			# for key, value in numbers_present.items():
-				# x,y,w,h = cv2.boundingRect(value.contour)
-				# center, _, _= cv2.minAreaRect(contour)
-				# cv2.rectangle(frame, (x,y), (x+w,y+h),(0,255,255),1)
-				# font = cv2.FONT_HERSHEY_SIMPLEX
-				# cv2.putText(frame, str(num.id), (int(center[0]), int(center[1])), font, 1, (200, 255, 255), 1, cv2.LINE_AA)
-			
 			numbers_past.clear()
 			numbers_past = numbers_present
 			numbers_present.clear()
@@ -148,48 +154,64 @@ def main():
 					
 					k1, l1 = u.getLineEquation(center, O)
 					
+					cropped = img_t[y:y+h, x:x+w]
+					# cv2.imshow('cropped', cropped)
+					# cv2.waitKey(0)
 					tgFi = center[1]/(center[0]-O[0])
-					# print('************************************')
+					num = Number(contour, False, tgFi)
 					# print(tgFi)
-					# print(tgFiP)
-					# print('************************************')
+					'''
+						ugao izmedju dve prave
+						tgfi = (tgfi2 - tgfi1) / (1 + tgfi1*tgfi2)
+					'''
+					tgFiAP = (tgFi - tgFiP)/(1 + tgFi*tgFiP)
+					# cv2.putText(frame, str(tgFiAP), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
+					# print(tgFiAP)
+					# Broj se nalazi s leve strane (iznad linije)
 					if tgFi > tgFiP:
-						# print('smt')
-						num = Number(contour, False)
+						
+						
 						ret = checkIfNumberExisted(num, left_near_numbers)
-						# print(flag)
 						if not ret['flag']:
 							num.id = getUniqueId()
-							print('smt elif')
+							# print('smt elif')
 							left_near_numbers[num.id] = num
-							print('Na frejmu broj ' + str(cap.get(cv2.CAP_PROP_POS_FRAMES)) + ' lista ima ' + str(len(left_near_numbers)) + ' clanova')
-							
-					# if tgFi < tgFiP:
-						
-						# cv2.putText(frame, str(tgFi), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
+							# print('Na frejmu broj ' + str(cap.get(cv2.CAP_PROP_POS_FRAMES)) + ' leva lista ima ' + str(len(left_near_numbers)) + ' clanova')
 					
+					# Broj se nalazi s desne strane (ispod linije)
+					if tgFi < tgFiP:
+						# ret = checkIfNumberExisted(num, right_near_numbers)
+						ret = checkIfNumberExisted(num, left_near_numbers)
+						
+						if ret['flag']:
+							# Znaci, ovaj broj je vec bio na levoj strani
+							to_add[ret['id']] = left_near_numbers[ret['id']]
+							
+							cropped = img_t[y:y+h, x:x+w]
+							small = cv2.resize(cropped, (64, 64))
+							# print(small)
+							small = cv2.bitwise_not(small)
+							# print('-----------------------')
+							small.flatten()
+							# print(small)
+							# cv2.imshow('cropped', cropped)
+							# cv2.imshow('small', small)
+							# cv2.imshow('contour', left_near_numbers[ret['id']].contour)
+							# cv2.waitKey(0)
+							print('Prediction:', clf.predict(small))
+							
+							del left_near_numbers[ret['id']]
+							# print('to add=====================================')
+							# print(len(to_add))
+							predict_num += 1
+							print(predict_num)
 				
 				cv2.line(frame, pnt, center, (255,255,0), 1)
 				# cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 			
-			# print('======================================' + str(len(contour_past)))
-			# if len(contour_past) > 0:
-				# for i in range(len(contour_past)):
-					# for j in range(len(contours_of_interest)):
-						# if i != j:
-						# center, _, _ = cv2.minAreaRect(contour_past[0])
-						# center1, _, _ = cv2.minAreaRect(contours_of_interest[j])
-						# print('Diff0: ' + str(center[0]-center1[0]))
-						# print('Diff1: ' + str(center[1]-center1[1]))
-						# ret = cv2.matchShapes(contour_past[0], contours_of_interest[j], 1, 0.0)
-						# font = cv2.FONT_HERSHEY_SIMPLEX
-						# cv2.putText(frame, str(ret), (int(center1[0]), int(center1[1])), font, 1, (200, 255, 255), 1, cv2.LINE_AA)
-						# print(ret)
-			# cv2.putText(frame, 'A', (50,10), font, 1, (200, 255, 255), 1, cv2.LINE_AA)
+			
 			cv2.imshow('frame', frame)
 			# cv2.imshow('binary', img_bin)
-			
-			
 			
 			del contour_past[:]
 			contour_past = contours_of_interest
@@ -204,8 +226,12 @@ def main():
 		# Ako smo stigli do kraja videa, onda prekidamo petlju
 		if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
 			break
-
-
+	
+	# if len(to_add)>0:
+	# print(len(to_add))
+		# for e in to_add:
+			# print(e)
+	
 	cap.release()
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
