@@ -6,6 +6,7 @@ import utils as u
 from number import Number
 from sklearn import datasets
 from sklearn import svm
+from sklearn.model_selection import cross_val_score
 
 id = -1 # identifikator svake konture
 
@@ -54,12 +55,18 @@ def getUniqueId():
 	id += 1
 	return id
 
-def main():
-	# Deo za masinsko ucenje
+# Deo za masinsko ucenje
+def getFitSVM():
 	digits = datasets.load_digits()
-	clf = svm.SVC(gamma=0.001, C=100)
-	x,y = digits.data[:], digits.target[:]
-	clf.fit(x,y)
+	clf = svm.SVC(kernel='linear', C=1)
+	scores = cross_val_score(clf, digits.data, digits.target, cv=5)
+	print(scores)
+	# print(clf.get_params())
+	clf.fit(digits.data, digits.target)
+	return clf
+
+def main():
+	clf = getFitSVM()
 	
 	font = cv2.FONT_HERSHEY_SIMPLEX
 	cap = cv2.VideoCapture('../data/video-1.avi')
@@ -86,9 +93,7 @@ def main():
 		tgFi = y / x
 	'''
 	tgFiP = lineCoords[0][1] / (lineCoords[0][0] - O[0])
-	print(tgFiP)
-	numbers_past = dict()
-	numbers_present = dict()
+	# print(tgFiP)
 	contour_past = []
 	numbers_to_add = dict()
 	
@@ -110,11 +115,10 @@ def main():
 			
 			contours_of_interest = []
 			for contour in contours:
-				center, size, angle = cv2.minAreaRect(contour)
-				width, height = size
-				if width >= 3.5 and width < 28 and height >= 3.5 and height < 28:
-					contours_of_interest.append(contour)
-				
+				x,y,w,h = cv2.boundingRect(contour)
+				if w >= 5 and w <= 25 and h >= 5 and h <= 25:
+					if not (w == 5 and h == 5):
+						contours_of_interest.append(contour)
 			
 			contours_of_interest = discardInnerRectangles(contours_of_interest)
 			
@@ -123,33 +127,23 @@ def main():
 				num = Number(contour=contour, passed=False)
 				x,y,w,h = cv2.boundingRect(contour)
 				cv2.rectangle(frame, (x,y), (x+w,y+h),(0,255,255),1)
-				retDic = checkIfNumberExisted(num, numbers_past)
-				if not retDic['flag']:
-					# print('not retDic')
-					num.id = getUniqueId()
-				else:
-					# print('else')
-					num.id = retDic['id']
-				numbers_present[num.id] = num
+				
+				center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2))
+				cv2.putText(frame, ('Width: ' + str(w) + ' Height: ' + str(h)), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 			
 			cv2.line(frame, (lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]), (0,255,0), 2)
 			
-			numbers_past.clear()
-			numbers_past = numbers_present
-			numbers_present.clear()
 			
 			for contour in contours_of_interest:
-				center, size, angle = cv2.minAreaRect(contour)
-				center = (center[0], center[1], 0)
 				x,y,w,h = cv2.boundingRect(contour)
+				# print('Width: ' + str(w) + ' Height: ' + str(h))
+				center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2), 0)
 				dist, pnt, = v.pnt2line(center, lineCoords[0], lineCoords[1])
-				# dist, pnt, = v.pnt2line((x+w, y+h, 0), lineCoords[0], lineCoords[1])
-				# dist, pnt, = v.pnt2line((x, y, 0), lineCoords[0], lineCoords[1])
-				# print('Dist: ' + str(dist))
-				pnt = (int(pnt[0]), int(pnt[1]))
-				center = (int(center[0]), int(center[1])) #(x+w, y+h)
 				
-				if dist < 20:
+				pnt = (int(pnt[0]), int(pnt[1]))
+				center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2))
+				
+				if dist < 20 and dist > 15: # dist > 10?
 					# cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 					
 					k1, l1 = u.getLineEquation(center, O)
@@ -188,21 +182,16 @@ def main():
 							to_add[ret['id']] = left_near_numbers[ret['id']]
 							
 							cropped = img_t[y:y+h, x:x+w]
-							small = cv2.resize(cropped, (64, 64))
-							# print(small)
+							small = cv2.resize(cropped, (8, 8))
 							small = cv2.bitwise_not(small)
-							# print('-----------------------')
-							small.flatten()
-							# print(small)
-							# cv2.imshow('cropped', cropped)
-							# cv2.imshow('small', small)
-							# cv2.imshow('contour', left_near_numbers[ret['id']].contour)
-							# cv2.waitKey(0)
-							print('Prediction:', clf.predict(small))
+							cv2.imshow('small', small)
+							cv2.waitKey(0)
+							
+							small = small.flatten()
+							small = np.transpose(small)
+							print('Prediction:', clf.predict(small.reshape(1, -1)))
 							
 							del left_near_numbers[ret['id']]
-							# print('to add=====================================')
-							# print(len(to_add))
 							predict_num += 1
 							print(predict_num)
 				
@@ -211,14 +200,14 @@ def main():
 			
 			
 			cv2.imshow('frame', frame)
-			# cv2.imshow('binary', img_bin)
+			cv2.imshow('binary', img_bin)
 			
 			del contour_past[:]
 			contour_past = contours_of_interest
-		else:
-			cap.set(cv2.cv.CV_CAP_PROP_POS_FRAMES, pos_frame-1)
-			print("Frejm nije spreman")
-			cv2.waitKey(1000)
+		# else:
+			# cap.set(cv2.CAP_PROP_POS_FRAMES, pos_frame-1)
+			# print("Frejm nije spreman")
+			# cv2.waitKey(1000)
 		
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
@@ -227,10 +216,7 @@ def main():
 		if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
 			break
 	
-	# if len(to_add)>0:
-	# print(len(to_add))
-		# for e in to_add:
-			# print(e)
+	print(len(to_add))
 	
 	cap.release()
 	cv2.waitKey(0)
