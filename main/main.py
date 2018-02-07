@@ -6,7 +6,7 @@ import utils as u
 from number import Number
 from sklearn import datasets
 from sklearn import svm
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, LeaveOneOut, GridSearchCV
 
 id = -1 # identifikator svake konture
 
@@ -42,7 +42,7 @@ def checkIfNumberExisted(number, numbers_past):
 			ret = cv2.matchShapes(value.contour, number.contour, 1, 0.0)
 			center, _, _ = cv2.minAreaRect(value.contour)
 			centerN, _, _ = cv2.minAreaRect(number.contour)
-			if ret < 0.1:
+			if ret < 0.5:
 				retFlag = True
 				retNumId = key
 				break
@@ -55,15 +55,25 @@ def getUniqueId():
 	id += 1
 	return id
 
-# Deo za masinsko ucenje
 def getFitSVM():
 	digits = datasets.load_digits()
-	clf = svm.SVC(kernel='linear', C=1)
-	scores = cross_val_score(clf, digits.data, digits.target, cv=5)
-	print(scores)
-	# print(clf.get_params())
-	clf.fit(digits.data, digits.target)
-	return clf
+	
+	params_svm = { "kernel": ['linear','rbf'] }
+	clf = svm.SVC(degree=3, gamma='auto', probability=True)
+	grid_svm = GridSearchCV(clf, params_svm)
+	
+	train = digits.data[:-539]
+	train_target = digits.target[:-539]
+	
+	test = digits.data[-539:]
+	test_target = digits.target[-539:]
+	# grid_svm.fit(digits.data, digits.target)
+	# print(grid_svm.score(digits.data,digits.target))
+	grid_svm.fit(train, train_target)
+	
+	print(grid_svm.score(test, test_target))
+	
+	return grid_svm
 
 def main():
 	clf = getFitSVM()
@@ -94,11 +104,6 @@ def main():
 	'''
 	tgFiP = lineCoords[0][1] / (lineCoords[0][0] - O[0])
 	# print(tgFiP)
-	contour_past = []
-	numbers_to_add = dict()
-	
-	left_near_numbers = dict()
-	right_near_numbers = dict()
 	
 	# Lista brojeva za sabrati
 	to_add = dict()
@@ -111,20 +116,19 @@ def main():
 			_, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
 			
 			img_t = img_bin
-			img, contours, hierarchy = cv2.findContours(img_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+			_, contours, _ = cv2.findContours(img_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 			
 			contours_of_interest = []
 			for contour in contours:
 				x,y,w,h = cv2.boundingRect(contour)
 				if w >= 5 and w <= 25 and h >= 5 and h <= 25:
-					if not (w == 5 and h == 5):
+					if not(w == 5 and h == 5):
 						contours_of_interest.append(contour)
 			
 			contours_of_interest = discardInnerRectangles(contours_of_interest)
 			
 			# Kreiranje brojeva i dodavanje u sadasnji recnik
 			for contour in contours_of_interest:
-				num = Number(contour=contour, passed=False)
 				x,y,w,h = cv2.boundingRect(contour)
 				cv2.rectangle(frame, (x,y), (x+w,y+h),(0,255,255),1)
 				
@@ -136,6 +140,9 @@ def main():
 			
 			for contour in contours_of_interest:
 				x,y,w,h = cv2.boundingRect(contour)
+				
+				# if h < 10:
+					# continue
 				# print('Width: ' + str(w) + ' Height: ' + str(h))
 				center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2), 0)
 				dist, pnt, = v.pnt2line(center, lineCoords[0], lineCoords[1])
@@ -143,71 +150,50 @@ def main():
 				pnt = (int(pnt[0]), int(pnt[1]))
 				center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2))
 				
-				if dist < 20 and dist > 15: # dist > 10?
+				# if dist < 20 and dist > 15:
+				if dist < 18 and dist > 15:
 					# cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 					
 					k1, l1 = u.getLineEquation(center, O)
 					
-					cropped = img_t[y:y+h, x:x+w]
-					# cv2.imshow('cropped', cropped)
-					# cv2.waitKey(0)
 					tgFi = center[1]/(center[0]-O[0])
-					num = Number(contour, False, tgFi)
 					# print(tgFi)
 					'''
 						ugao izmedju dve prave
 						tgfi = (tgfi2 - tgfi1) / (1 + tgfi1*tgfi2)
 					'''
-					tgFiAP = (tgFi - tgFiP)/(1 + tgFi*tgFiP)
+					# tgFiAP = (tgFi - tgFiP)/(1 + tgFi*tgFiP)
 					# cv2.putText(frame, str(tgFiAP), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 					# print(tgFiAP)
-					# Broj se nalazi s leve strane (iznad linije)
-					if tgFi > tgFiP:
-						
-						
-						ret = checkIfNumberExisted(num, left_near_numbers)
-						if not ret['flag']:
-							num.id = getUniqueId()
-							# print('smt elif')
-							left_near_numbers[num.id] = num
-							# print('Na frejmu broj ' + str(cap.get(cv2.CAP_PROP_POS_FRAMES)) + ' leva lista ima ' + str(len(left_near_numbers)) + ' clanova')
-					
 					# Broj se nalazi s desne strane (ispod linije)
 					if tgFi < tgFiP:
-						# ret = checkIfNumberExisted(num, right_near_numbers)
-						ret = checkIfNumberExisted(num, left_near_numbers)
+						cropped = img_t[y:y+h, x:x+w]
+						# small = cropped
+						small = cv2.resize(cropped, (8, 8))
+						small = cv2.bitwise_not(small)
+						cv2.imshow('small', small)
+						cv2.waitKey(0)
 						
-						if ret['flag']:
-							# Znaci, ovaj broj je vec bio na levoj strani
-							to_add[ret['id']] = left_near_numbers[ret['id']]
-							
-							cropped = img_t[y:y+h, x:x+w]
-							small = cv2.resize(cropped, (8, 8))
-							small = cv2.bitwise_not(small)
-							cv2.imshow('small', small)
-							cv2.waitKey(0)
-							
-							small = small.flatten()
-							small = np.transpose(small)
-							print('Prediction:', clf.predict(small.reshape(1, -1)))
-							
-							del left_near_numbers[ret['id']]
-							predict_num += 1
-							print(predict_num)
+						small = small.flatten()
+						small = np.transpose(small)
+						print('Prediction:', clf.predict(small.reshape(1, -1)))
+						
+						# del left_near_numbers[ret['id']]
+						predict_num += 1
+						print(predict_num)
+						
 				
 				cv2.line(frame, pnt, center, (255,255,0), 1)
 				# cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 			
 			
 			cv2.imshow('frame', frame)
-			cv2.imshow('binary', img_bin)
+			# cv2.imshow('binary', img_bin)
 			
-			del contour_past[:]
-			contour_past = contours_of_interest
-		# else:
-			# cap.set(cv2.CAP_PROP_POS_FRAMES, pos_frame-1)
-			# print("Frejm nije spreman")
-			# cv2.waitKey(1000)
+		else:
+			cap.set(cv2.CAP_PROP_POS_FRAMES, pos_frame-1)
+			print("Frejm nije spreman")
+			cv2.waitKey(1000)
 		
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
@@ -216,7 +202,6 @@ def main():
 		if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
 			break
 	
-	print(len(to_add))
 	
 	cap.release()
 	cv2.waitKey(0)

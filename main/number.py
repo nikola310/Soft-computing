@@ -1,9 +1,10 @@
 class Number:
 	
-	def __init__(self, contour, passed, tgFi=0, id=-1):
+	def __init__(self, contour, passed, small, tgFi=0, id=-1):
 		self.contour = contour
 		self.id = id
 		self.passed = passed
+		self.small = small
 		self.tgFi = tgFi
 	
 	def __str__(self):
