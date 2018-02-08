@@ -74,14 +74,23 @@ def getFitSVM():
 	params_svm = { "kernel": ['linear','rbf'] }
 	clf = svm.SVC(degree=3, gamma='auto', probability=True)
 	grid_svm = GridSearchCV(clf, params_svm)
-	grid_svm = RandomizedSearchCV(clf, params_svm, n_iter=2)
+	# grid_svm = RandomizedSearchCV(clf, params_svm, n_iter=2)
 	
 	# train = digits.data[:-359]
 	# train_target = digits.target[:-359]
 	train, train_target = mndata.load_training()
+	train = train[:10]
+	train_target = train_target[:10]
+	train_target = np.fromiter(train_target, dtype=np.int)
+	# print(train)
+	print(type(train_target))
 	# print('pre fita')
 	# clf.fit(train, train_target)
 	test, test_target = mndata.load_testing()
+	test = test[:10]
+	test_target = test_target[:10]
+	test_target = np.fromiter(test_target, dtype=np.int)
+	# print(len(train))
 	# test = digits.data[-359:]
 	# test_target = digits.target[-359:]
 	# grid_svm.fit(digits.data, digits.target)
