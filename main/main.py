@@ -3,11 +3,12 @@ import math
 import cv2
 import vectors as v
 import utils as u
+import os
 from number import Number
 from sklearn import datasets
 from sklearn import svm
-from sklearn.model_selection import cross_val_score, LeaveOneOut, GridSearchCV
-
+from sklearn.model_selection import cross_val_score, GridSearchCV, RandomizedSearchCV
+from mnist import MNIST
 id = -1 # identifikator svake konture
 
 # Odbacuje konture koje se nalaze unutar druge konture
@@ -56,23 +57,39 @@ def getUniqueId():
 	return id
 
 def getFitSVM():
-	digits = datasets.load_digits()
+	putanja = os.getcwd()
+	putanja  = putanja[:-5] + "\mnist-data\\"
+	
+	# print('---------------')
+	# print(putanja)
+	# print(putanja[:-5])
+	# mndata = MNIST('../minst-data/')
+	# print(putanja)
+	mndata = MNIST(putanja)
+	mndata.gz = True
+	
+	
+	# digits = datasets.load_digits()
 	
 	params_svm = { "kernel": ['linear','rbf'] }
 	clf = svm.SVC(degree=3, gamma='auto', probability=True)
 	grid_svm = GridSearchCV(clf, params_svm)
+	grid_svm = RandomizedSearchCV(clf, params_svm, n_iter=2)
 	
-	train = digits.data[:-539]
-	train_target = digits.target[:-539]
-	
-	test = digits.data[-539:]
-	test_target = digits.target[-539:]
+	# train = digits.data[:-359]
+	# train_target = digits.target[:-359]
+	train, train_target = mndata.load_training()
+	# print('pre fita')
+	# clf.fit(train, train_target)
+	test, test_target = mndata.load_testing()
+	# test = digits.data[-359:]
+	# test_target = digits.target[-359:]
 	# grid_svm.fit(digits.data, digits.target)
 	# print(grid_svm.score(digits.data,digits.target))
 	grid_svm.fit(train, train_target)
-	
-	print(grid_svm.score(test, test_target))
-	
+	print('Train set score: ' + str(grid_svm.score(train, train_target)))
+	print('Test set score: ' + str(grid_svm.score(test, test_target)))
+	# return clf
 	return grid_svm
 
 def main():
@@ -150,8 +167,8 @@ def main():
 				pnt = (int(pnt[0]), int(pnt[1]))
 				center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2))
 				
-				# if dist < 20 and dist > 15:
-				if dist < 18 and dist > 15:
+				if dist < 20 and dist > 15:
+				# if dist < 18 and dist > 15:
 					# cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
 					
 					k1, l1 = u.getLineEquation(center, O)
@@ -169,18 +186,22 @@ def main():
 					if tgFi < tgFiP:
 						cropped = img_t[y:y+h, x:x+w]
 						# small = cropped
+						# small = cv2.bitwise_not(cropped)
+						# small = cv2.resize(cropped, (8, 8))
 						small = cv2.resize(cropped, (8, 8))
 						small = cv2.bitwise_not(small)
+						# print(tgFi)
+						# print(dist)
 						cv2.imshow('small', small)
 						cv2.waitKey(0)
 						
 						small = small.flatten()
 						small = np.transpose(small)
-						print('Prediction:', clf.predict(small.reshape(1, -1)))
+						# print('Prediction:', clf.predict(small.reshape(1, -1)))
 						
 						# del left_near_numbers[ret['id']]
 						predict_num += 1
-						print(predict_num)
+						# print(predict_num)
 						
 				
 				cv2.line(frame, pnt, center, (255,255,0), 1)
