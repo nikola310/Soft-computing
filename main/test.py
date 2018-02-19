@@ -12,7 +12,7 @@ cv2.imshow('img', img)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
-img = cv2.resize(img, (8,8))
+img = cv2.resize(img, (28,28))
 
 img = img.flatten()
 

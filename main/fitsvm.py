@@ -1,4 +1,5 @@
 import os
+import pickle
 import numpy as np
 from sklearn import datasets
 from sklearn import svm
@@ -15,6 +16,8 @@ x,y = digits.data[:], digits.target[:]
 clt.fit(x,y)
 '''
 PATH = 'mlp_model.pkl'
+
+f = open(PATH, 'wb')
 
 putanja = os.getcwd()
 putanja  = putanja[:-5] + "\mnist-data\\"
@@ -63,7 +66,7 @@ print("grid_rdf search accuracy: {:.2f}%".format(acc_rdf * 100))
 print("grid_rdf search best parameters: {}".format(grid_svm.best_params_))
 print('Train set score: ' + str(grid_svm.score(train, train_target)))
 print('Test set score: ' + str(grid_svm.score(test, test_target)))
-joblib.dump(clf, PATH)
-'''
+pickle.dump(grid_svm, f)
+# joblib.dump(clf, PATH)
 # return clf
 # return grid_svm
