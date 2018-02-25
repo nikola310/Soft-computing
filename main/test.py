@@ -16,4 +16,4 @@ img = cv2.resize(img, (28,28))
 
 img = img.flatten()
 
-print(d.predict(img.reshape(1, -1)))
+print(d.predict(img.reshape(1,-1)))
