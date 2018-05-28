@@ -4,7 +4,7 @@ from sklearn.externals import joblib
 
 PATH = 'mlp_model.pkl'
 
-d = joblib.load(PATH)
+d = joblib.load(PATH, 'r')
 
 img = cv2.imread('8.png', 0)
 
