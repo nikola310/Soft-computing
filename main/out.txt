@@ -1,12 +1,12 @@
-RA X/2013 Marko Markovic
+RA 13/2014 Nikola Stojanovic
 file	sum
-video-0.avi	0
-video-1.avi	0
-video-2.avi	0
-video-3.avi	0
-video-4.avi	0
-video-5.avi	0
-video-6.avi	0
-video-7.avi	0
-video-8.avi	0
-video-9.avi	0
+video-0.avi	13
+video-1.avi	79
+video-2.avi	33
+video-3.avi	53
+video-4.avi	53
+video-5.avi	35
+video-6.avi	49
+video-7.avi	44
+video-8.avi	63
+video-9.avi	75

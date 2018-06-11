@@ -1,18 +1,21 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jun  9 20:30:04 2018
+
+@author: Nikola
+"""
 import numpy as np
 import cv2
 import vectors as v
 import utils as u
-import os
 from keras import models
-from sklearn import datasets
-from sklearn import svm
-from sklearn.model_selection import cross_val_score, RandomizedSearchCV
-from sklearn.grid_search import GridSearchCV
-from keras.datasets import mnist
-#from mnist import MNIST
+from number import Number
+from scipy.spatial import distance
 expand = 7
 
-# Odbacuje konture koje se nalaze unutar druge konture
+'''
+    Odbacuje konture koje se nalaze unutar druge konture
+'''
 def discardInnerRectangles(contours):
     to_delete = []
     retVal = []
@@ -35,23 +38,6 @@ def discardInnerRectangles(contours):
             retVal.append(contours[i])
     return retVal
 
-# Proverava da li je broj postojao u prethodnom frejmu
-def checkIfNumberExisted(number, numbers_past):
-    retFlag = False
-    retNumId = -1
-    if len(numbers_past) > 0:
-        for key, value in numbers_past.items():
-            ret = cv2.matchShapes(value.contour, number.contour, 1, 0.0)
-            center, _, _ = cv2.minAreaRect(value.contour)
-            centerN, _, _ = cv2.minAreaRect(number.contour)
-            if ret < 0.5:
-                retFlag = True
-                retNumId = key
-                break
-    else:
-        return {'flag' : retFlag, 'id' : retNumId}
-    return {'flag' : retFlag, 'id' : retNumId}
-
 def expandImage(img):
     rows, cols = img.shape
     matrica = np.zeros((rows+2*expand, cols+2*expand))
@@ -65,16 +51,17 @@ def expandImage(img):
 
 def predictNumber(model, cropped):
     rows, cols = cropped.shape
-    #cropped_real = cropped
     cropped = expandImage(cropped)
-    #cropped = cv2.GaussianBlur(cropped, (5, 5), 1)
-    small = cv2.resize(cropped, (28, 28), interpolation = cv2.INTER_NEAREST)
 
+    small = cv2.resize(cropped, (28, 28), interpolation = cv2.INTER_NEAREST)
     scaled = small / 255
+
     flattened = scaled.flatten()
-    broj = np.reshape(flattened, (1, 784))
-    cv2.imshow('scaled', scaled)
-    cv2.waitKey(0)
+
+    broj = np.reshape(flattened, (1, 784))    
+    #cv2.imshow('scaled', scaled)
+    #cv2.waitKey(0)
+
     predicted_result = model.predict(broj)
     final_result = np.argmax(predicted_result)
     print('Prediction: ', final_result)
@@ -82,162 +69,224 @@ def predictNumber(model, cropped):
     
     
 def getFitSVM():
-    putanja = os.getcwd()
-    putanja  = putanja[:-5] + "\mnist-data\\"
-    
-    # print('---------------')
-    # print(putanja)
-    # print(putanja[:-5])
-    # mndata = MNIST('../minst-data/')
-    # print(putanja)
-    mndata = mnist.load_data() #MNIST(putanja)
-    mndata.gz = True
-    accuracies_rdf = []
-    
-    # digits = datasets.load_digits()
-    
-    params_svm = { "kernel": ['linear','rbf'] }
-    clf = svm.SVC(degree=3, gamma='auto', probability=True)
-    grid_svm = GridSearchCV(clf, params_svm, verbose=1, n_jobs=-1)
-    # grid_svm = RandomizedSearchCV(clf, params_svm, n_iter=2, n_jobs=-1, verbose=1000)
-    
-    # train = digits.data[:-359]
-    # train_target = digits.target[:-359]
-    train, train_target = mndata.load_training()
-    train = train[:2000]
-    train_target = train_target[:2000]
-    train_target = np.fromiter(train_target, dtype=np.int)
-    # print(train)
-    print(type(train_target))
-    # print('pre fita')
-    # clf.fit(train, train_target)
-    test, test_target = mndata.load_testing()
-    # test = test[]
-    # test_target = test_target[:3000]
-    test_target = np.fromiter(test_target, dtype=np.int)
-    # print(len(train))
-    # test = digits.data[-359:]
-    # test_target = digits.target[-359:]
-    # grid_svm.fit(digits.data, digits.target)
-    # print(grid_svm.score(digits.data,digits.target))
-    print('Poceo fit...')
-    grid_svm.fit(train, train_target)
-    acc_rdf = grid_svm.score(test,test_target)
-    accuracies_rdf.append(acc_rdf*100)
+    '''
+        To implement...
+    '''
 
-    print("grid_rdf search accuracy: {:.2f}%".format(acc_rdf * 100))
-    print("grid_rdf search best parameters: {}".format(grid_rdf.best_params_))
-    print('Train set score: ' + str(grid_svm.score(train, train_target)))
-    print('Test set score: ' + str(grid_svm.score(test, test_target)))
-    # return clf
-    return grid_svm
+'''
+    Metoda koja pronalazi konture na slici, obrađuje ih i pronolazi brojeve.
+'''
+def getNumbers(img_bin):
+    _, contours, _ = cv2.findContours(img_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+    contours_of_interest = []
+    for contour in contours:
+        x,y,w,h = cv2.boundingRect(contour)
+        if w >= 5 and w <= 25 and h >= 9 and h <= 25: #w>=5
+            contours_of_interest.append(contour)
+                
+    contours_of_interest = discardInnerRectangles(contours_of_interest)
+                
+    for contour in contours_of_interest:
+        x,y,w,h = cv2.boundingRect(contour)
+    brojevi = []
+    
+    for contour in contours_of_interest:
+        x,y,w,h = cv2.boundingRect(contour)
+
+        num = Number(x,y,w,h)
+        brojevi.append(num)
+            
+    return brojevi
+
+'''
+    Pronalazi prethodni element iz niza koji najbolje odgovara
+    prosledjenom broju.
+'''
+def findNumber(number, oldNumbers):
+    cadidates = []
+
+    for old in oldNumbers:
+        #vlastitu funkciju????
+        dist = distance.euclidean((number.x + number.w, number.y + number.h), (old.x + old.w, old.y + old.h))
+
+        if dist < 30:
+            cadidates.append([dist, old])
+
+    cadidates = sorted(cadidates, key=lambda x: x[0])   
+
+    if len(cadidates) > 0:
+        return cadidates[0][1]
+    else:
+        return None
+
+'''
+    Ažurira postojeće brojeve. Za svaki broj pokreće funkciju koja će
+    pokušati naći najbliži broj iz prethodnog frejma. Ako nađe, onda se
+    postojećem broju ažurira pozicija. Ako ne nađe, onda ga dodaje kao
+    novi broj u listu.
+'''
+def updateNumbers(newNumbers, oldNumbers):
+    for new in newNumbers:
+        old = findNumber(new, oldNumbers)
+
+        if old is None:
+            oldNumbers.append(new)       
+        else:
+            old.updateCoords(new.x, new.y, new.w, new.h)
+
+'''
+    Metoda koja izbacuje brojeve koji više nisu od interesa (predaleko su).
+'''
+def removeFarAwayNumbers(numbers):
+    retVal = []
+    for num in numbers:
+        if (num.x + num.w < 620) and (num.y + num.h < 470):
+        #if not (num.get_bottom_right()[1] > 470 or num.get_bottom_right()[0] > 620):
+            retVal.append(num)
+    
+    return retVal
+
+'''
+    Metoda koja iscrtava brojeve na frejm
+'''
+def iscrtajBrojeve(numbers, frame):
+    for num in numbers:
+        center = (int((num.x + (num.x + num.w)) / 2), int((num.y + (num.y + num.h)) / 2))
+        cv2.putText(frame, ('Width: ' + str(num.w) + ' Height: ' + str(num.h)), center, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
+        cv2.rectangle(frame, (num.x,num.y), (num.x+num.w,num.y+num.h),(0,255,255),1)
+
+
+'''
+    Proverava da li je određeni broje prošao ispod
+    linije.
+'''
+def checkIfPassed(tgFiP, O, lineCoords, broj):
+    dot = (int(broj.x), int(broj.y), 0)
+    dist, pnt, = v.pnt2line(dot, lineCoords[0], lineCoords[1])
+                    
+    pnt = (int(pnt[0]), int(pnt[1]))
+    center = (int((broj.x + (broj.x + broj.w)) / 2), int((broj.y + (broj.y + broj.h)) / 2))
+
+    if dist < 20 and dist > 15:
+        k1, l1 = u.getLineEquation(center, O)
+        tgFi = center[1]/(center[0]-O[0])
+        
+        '''
+            Ugao između dve prave
+            tgfi = (tgfi2 - tgfi1) / (1 + tgfi1*tgfi2)
+            
+            Ako je tgFi < tgFiP, onda se broj nalazi ispod linije,
+            što znači da je prošao ispod linije.
+        '''
+        if tgFi < tgFiP:
+            return True
+        else:
+            return False
+    else:
+        return False
+
+'''
+    Metoda koja obrađuje određeni video i upisuje
+    rezultat u out.txt
+'''
+def processVideo(video, file, model):
+    cap = cv2.VideoCapture('../data/' + video)
+    
+    cv2.startWindowThread()
+    
+    flag, frame = cap.read()
+    
+    img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    _, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
+    
+    lineCoords = u.detectLine(img_bin, frame)
+    
+    k,l = u.getLineEquation((lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]))
+    
+    '''
+        'ishodište', tj. tačka u kojoj prava seče x osu
+        u zavisnosti od nje će se računati tangens fi ugla 
+        y = kx + l za y = 0
+    '''
+    O = (-l/k, 0)
+    
+    '''
+    tgFi = y / x
+    '''
+    tgFiP = lineCoords[0][1] / (lineCoords[0][0] - O[0])
+    
+    suma = 0
+    
+    brojevi = []
+    
+    while(cap.isOpened()):
+        flag, frame = cap.read()
+        if flag:
+            img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            _, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
+            
+            
+            cv2.line(frame, (lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]), (0,255,0), 2)
+            
+            numbers = getNumbers(img_bin)
+            
+            if len(numbers) > 0:
+                updateNumbers(numbers, brojevi)
+            
+            '''
+                Proverava da li je broj prošao ispod linije,
+                ako jeste onda ga sabira
+            '''
+            for br in brojevi:
+                if br.passed == False:
+                    if checkIfPassed(tgFiP, O, lineCoords, br) == True:
+                        br.setPassed(True)
+                        cropped = img_bin[br.y - expand:br.y + br.h + expand, br.x - expand:br.x + br.w + expand]
+                        rez = predictNumber(model, cropped)
+                        suma += rez
+                
+            brojevi = removeFarAwayNumbers(brojevi)
+            
+            #iscrtajBrojeve(brojevi, frame)
+            #cv2.imshow(video, frame)
+            
+            
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+            
+            
+        # Ako smo stigli do kraja videa, onda prekidamo petlju
+        if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
+            break
+        
+        
+    cap.release()
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+    print('suma -> ', suma)
+    file.write('\n' + video + '\t' + str(suma))
+
+
 
 def main():
     if __name__ == '__main__':
-        #clf = getFitSVM()
-        model = models.load_model('testfile.h5')
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cap = cv2.VideoCapture('../data/video-1.avi')
         
-        cv2.startWindowThread()
+        model = models.load_model('model.h5')
         
-        flag, frame = cap.read()
+        #Otvaranje fajla za pisanje    
+        out = open('out.txt', 'a')
+        out.write('RA 13/2014 Nikola Stojanovic')
+        out.write('\nfile\tsum')
         
-        img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        _, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
+        videos = ['video-0.avi', 'video-1.avi', 'video-2.avi', 'video-3.avi', 'video-4.avi', 'video-5.avi', 'video-6.avi', 'video-7.avi', 'video-8.avi', 'video-9.avi']
         
-        lineCoords = u.detectLine(img_bin, frame)
+        print('Zapoceo obradu videa')
+        for video in videos:
+            print(video)
+            processVideo(video, out, model)
         
-        k,l = u.getLineEquation((lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]))
-        
-        '''
-            'ishodiste', tj. tacka u kojoj prava sece x osu
-            u zavisnosti od nje ce se racunati tangens fi ugla 
-            y = kx + l za y = 0
-        '''
-        O = (-l/k, 0)
-        
-        '''
-            tgFi = y / x
-        '''
-        tgFiP = lineCoords[0][1] / (lineCoords[0][0] - O[0])
-        
-        suma = 0
-        
-        while(cap.isOpened()):
-            flag, frame = cap.read()
-            if flag:
-                img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                _, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
-                
-                img_t = img_bin
-                _, contours, _ = cv2.findContours(img_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-                
-                contours_of_interest = []
-                for contour in contours:
-                    x,y,w,h = cv2.boundingRect(contour)
-                    if w >= 9 and w <= 25 and h >= 9 and h <= 25: #w>=5
-                        contours_of_interest.append(contour)
-                
-                contours_of_interest = discardInnerRectangles(contours_of_interest)
-                
-                for contour in contours_of_interest:
-                    x,y,w,h = cv2.boundingRect(contour)
-                    cv2.rectangle(frame, (x,y), (x+w,y+h),(0,255,255),1)
-                    
-                    center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2))
-                    cv2.putText(frame, ('Width: ' + str(w) + ' Height: ' + str(h)), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
-                
-                cv2.line(frame, (lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]), (0,255,0), 2)
-                
-                
-                for contour in contours_of_interest:
-                    x,y,w,h = cv2.boundingRect(contour)
-                    
-                    #center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2), 0)
-                    dot = (int(x), int(y), 0)
-                    dist, pnt, = v.pnt2line(dot, lineCoords[0], lineCoords[1])
-                    
-                    pnt = (int(pnt[0]), int(pnt[1]))
-                    center = (int((x + (x + w)) / 2), int((y + (y + h)) / 2))
-                    
-                    if dist < 20 and dist > 15:
-                    # if dist < 18 and dist > 15:
-                        # cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
-                        
-                        k1, l1 = u.getLineEquation(center, O)
-                        
-                        tgFi = center[1]/(center[0]-O[0])
-                        '''
-                            ugao izmedju dve prave
-                            tgfi = (tgfi2 - tgfi1) / (1 + tgfi1*tgfi2)
-                        '''
-                        # tgFiAP = (tgFi - tgFiP)/(1 + tgFi*tgFiP)
-                        # cv2.putText(frame, str(tgFiAP), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
-                        # print(tgFiAP)
-                        # Broj se nalazi s desne strane (ispod linije)
-                        if tgFi < tgFiP:
-                            cropped = img_t[y - expand:y + h + expand, x - expand:x + w + expand]
-                            br = predictNumber(model, cropped)
-                            print('Prediction: ', br)
-                            suma += br
-                    
-                    cv2.line(frame, pnt, center, (255,255,0), 1)
-                    # cv2.putText(frame, str(dist), center, font, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
-                
-                cv2.imshow('frame', frame)
-                # cv2.imshow('binary', img_bin)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            
-            # Ako smo stigli do kraja videa, onda prekidamo petlju
-            if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
-                break
-        
-        
-        cap.release()
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        print('Kraj...')
+
 
 main()
