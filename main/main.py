@@ -11,7 +11,9 @@ import utils as u
 from keras import models
 from number import Number
 from scipy.spatial import distance
-expand = 7
+import math
+#expand = 4 # -> cnn == 88.25
+expand = 6 # -> mlp = 88.81
 
 '''
     Odbacuje konture koje se nalaze unutar druge konture
@@ -53,12 +55,19 @@ def predictNumber(model, cropped):
     rows, cols = cropped.shape
     cropped = expandImage(cropped)
 
-    small = cv2.resize(cropped, (28, 28), interpolation = cv2.INTER_NEAREST)
+    small = cv2.resize(cropped, (28, 28), interpolation = cv2.INTER_CUBIC) #INTER_NEAREST)
     scaled = small / 255
 
+    # za mlp?
     flattened = scaled.flatten()
-
-    broj = np.reshape(flattened, (1, 784))    
+    broj = np.reshape(flattened, (1, 784))
+    '''
+    #za cnn
+    broj = np.expand_dims(scaled, axis=2)
+    broj = np.expand_dims(broj, axis=0)
+    
+    '''
+    
     #cv2.imshow('scaled', scaled)
     #cv2.waitKey(0)
 
@@ -66,12 +75,6 @@ def predictNumber(model, cropped):
     final_result = np.argmax(predicted_result)
     print('Prediction: ', final_result)
     return final_result
-    
-    
-def getFitSVM():
-    '''
-        To implement...
-    '''
 
 '''
     Metoda koja pronalazi konture na slici, obrađuje ih i pronolazi brojeve.
@@ -107,7 +110,6 @@ def findNumber(number, oldNumbers):
     cadidates = []
 
     for old in oldNumbers:
-        #vlastitu funkciju????
         dist = distance.euclidean((number.x + number.w, number.y + number.h), (old.x + old.w, old.y + old.h))
 
         if dist < 30:
@@ -167,7 +169,7 @@ def checkIfPassed(tgFiP, O, lineCoords, broj):
                     
     pnt = (int(pnt[0]), int(pnt[1]))
     center = (int((broj.x + (broj.x + broj.w)) / 2), int((broj.y + (broj.y + broj.h)) / 2))
-
+    
     if dist < 20 and dist > 15:
         k1, l1 = u.getLineEquation(center, O)
         tgFi = center[1]/(center[0]-O[0])
@@ -180,7 +182,39 @@ def checkIfPassed(tgFiP, O, lineCoords, broj):
             što znači da je prošao ispod linije.
         '''
         if tgFi < tgFiP:
+            '''
+            distd = u.getDistance(broj.x, broj.y, lineCoords[0][0], lineCoords[0][1])
+            distu = u.getDistance(broj.x, broj.y, lineCoords[1][0], lineCoords[1][1])
+            if distd < distu:
+                print('distd < distu')
+                Ktmp, _ = u.getLineEquation((broj.x, broj.y), lineCoords[0])
+                KMain, _ = u.getLineEquation(lineCoords[0], lineCoords[1])
+                imenilac = 1 + Ktmp*KMain
+                brojilac = KMain - Ktmp
+                if imenilac != 0:
+                    fi = math.degrees(math.atan(imenilac/brojilac))
+                    print(fi)
+                    if fi < math.pi / 2:
+                        return False
+                else:
+                    return False
+            elif distu < distd:
+                print('distu < distd')
+                Ktmp, _ = u.getLineEquation((broj.x, broj.y), lineCoords[1])
+                KMain, _ = u.getLineEquation(lineCoords[0], lineCoords[1])
+                imenilac = 1 + Ktmp*KMain
+                brojilac = KMain - Ktmp
+                if imenilac != 0:
+                    fi = math.degrees(math.atan(imenilac/brojilac))
+                    print(fi)
+                    if fi < math.pi / 2:
+                        return False
+                else:
+                        return False
+            '''
+            
             return True
+        
         else:
             return False
     else:
@@ -200,9 +234,21 @@ def processVideo(video, file, model):
     img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     _, img_bin = cv2.threshold(img_gray, 25, 255, cv2.THRESH_BINARY)
     
+    #img_bin
     lineCoords = u.detectLine(img_bin, frame)
     
     k,l = u.getLineEquation((lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]))
+    
+    '''
+        Prava normalna na "donju" tacku glavne prave
+    
+    kd, ld = u.getPerpendicularLine(k, l, lineCoords[0])
+
+
+        Prava normalna na "gornju" tacku glavne prave
+    
+    ku, lu = u.getPerpendicularLine(k, l, lineCoords[1])
+    '''
     
     '''
         'ishodište', tj. tačka u kojoj prava seče x osu
@@ -249,6 +295,8 @@ def processVideo(video, file, model):
             brojevi = removeFarAwayNumbers(brojevi)
             
             #iscrtajBrojeve(brojevi, frame)
+            #cv2.putText(frame, ('x1: ' + str(lineCoords[0][0]) + ' y1: ' + str(lineCoords[0][1])), (lineCoords[0][0], lineCoords[0][1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
+            #cv2.putText(frame, ('x2: ' + str(lineCoords[1][0]) + ' y2: ' + str(lineCoords[1][1])), (lineCoords[1][0], lineCoords[1][1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 255, 255), 1, cv2.LINE_AA)
             #cv2.imshow(video, frame)
             
             
@@ -272,7 +320,7 @@ def processVideo(video, file, model):
 def main():
     if __name__ == '__main__':
         
-        model = models.load_model('model.h5')
+        model = models.load_model('model_mlp.h5') #model_cnn.h5
         
         #Otvaranje fajla za pisanje    
         out = open('out.txt', 'a')
@@ -280,7 +328,6 @@ def main():
         out.write('\nfile\tsum')
         
         videos = ['video-0.avi', 'video-1.avi', 'video-2.avi', 'video-3.avi', 'video-4.avi', 'video-5.avi', 'video-6.avi', 'video-7.avi', 'video-8.avi', 'video-9.avi']
-        
         print('Zapoceo obradu videa')
         for video in videos:
             print(video)
