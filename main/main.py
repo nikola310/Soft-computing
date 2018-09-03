@@ -182,39 +182,7 @@ def checkIfPassed(tgFiP, O, lineCoords, broj):
             što znači da je prošao ispod linije.
         '''
         if tgFi < tgFiP:
-            '''
-            distd = u.getDistance(broj.x, broj.y, lineCoords[0][0], lineCoords[0][1])
-            distu = u.getDistance(broj.x, broj.y, lineCoords[1][0], lineCoords[1][1])
-            if distd < distu:
-                print('distd < distu')
-                Ktmp, _ = u.getLineEquation((broj.x, broj.y), lineCoords[0])
-                KMain, _ = u.getLineEquation(lineCoords[0], lineCoords[1])
-                imenilac = 1 + Ktmp*KMain
-                brojilac = KMain - Ktmp
-                if imenilac != 0:
-                    fi = math.degrees(math.atan(imenilac/brojilac))
-                    print(fi)
-                    if fi < math.pi / 2:
-                        return False
-                else:
-                    return False
-            elif distu < distd:
-                print('distu < distd')
-                Ktmp, _ = u.getLineEquation((broj.x, broj.y), lineCoords[1])
-                KMain, _ = u.getLineEquation(lineCoords[0], lineCoords[1])
-                imenilac = 1 + Ktmp*KMain
-                brojilac = KMain - Ktmp
-                if imenilac != 0:
-                    fi = math.degrees(math.atan(imenilac/brojilac))
-                    print(fi)
-                    if fi < math.pi / 2:
-                        return False
-                else:
-                        return False
-            '''
-            
             return True
-        
         else:
             return False
     else:
@@ -238,17 +206,6 @@ def processVideo(video, file, model):
     lineCoords = u.detectLine(img_bin, frame)
     
     k,l = u.getLineEquation((lineCoords[0][0], lineCoords[0][1]), (lineCoords[1][0], lineCoords[1][1]))
-    
-    '''
-        Prava normalna na "donju" tacku glavne prave
-    
-    kd, ld = u.getPerpendicularLine(k, l, lineCoords[0])
-
-
-        Prava normalna na "gornju" tacku glavne prave
-    
-    ku, lu = u.getPerpendicularLine(k, l, lineCoords[1])
-    '''
     
     '''
         'ishodište', tj. tačka u kojoj prava seče x osu
