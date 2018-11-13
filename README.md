@@ -1,2 +1,3 @@
 # Soft-Computing
-Faculty project for subject Soft Computing
+
+Technologies used: Python, OpenCV and Keras neural network.
